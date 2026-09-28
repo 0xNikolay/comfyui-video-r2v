@@ -1,27 +1,45 @@
-# clean base image containing only comfyui, comfy-cli and comfyui-manager
+# clean base image containing only comfyui, comfy-cli and comfyui-manager.
+# NOTE: this base image already ships the Runpod handler -- including the
+# runpod.serverless.start({"handler": handler}) call -- so no handler is added
+# here. That is why Runpod's "Could not find runpod.serverless.start() in your
+# branch" pre-deploy check fires: it greps the repo, and the handler lives one
+# layer down, in this image.
 FROM runpod/worker-comfyui:5.10.0-base
 
-# build-time tokens for gated downloads are read from BuildKit secret
-# mounts — they are never written to a layer or to image history.
-# pass via: docker buildx build --secret id=hf_token,env=HF_TOKEN .
+# ---------------------------------------------------------------------------
+# Models are NOT baked into the image.
+#
+# A Runpod network volume is attached to the endpoint and mounted at RUNTIME
+# (serverless: /runpod-volume, pods: /workspace). `docker build` never sees it,
+# so weights cannot be downloaded during the build. Baking them instead is what
+# stalled the previous build: the downloads below total ~66 GB, which blows the
+# 30-minute docker-build timeout and pushes the image past the 80 GB limit.
+#
+# Instead:
+#   * extra_model_paths.yaml points ComfyUI at /runpod-volume/models/...
+#   * download-models.sh populates the volume on first start (idempotent), so
+#     later cold starts are fast.
+# ---------------------------------------------------------------------------
 
 # install custom nodes into comfyui
-# RUN # Could not resolve custom node: MiniMaxH3Extender
+# WARNING: comfyui-wizard could not resolve the MiniMaxH3 node pack, so this is
+# a no-op. api-workflow.json loads MiniMaxH3ReferenceToVideo (plus
+# ResolutionSelector / ComfySwitchNode / ComfyMathExpression). Until that pack is
+# installed here, every job will fail with "node type not found". Resolve it at
+# https://registry.comfy.org and uncomment:
+# RUN comfy-node-install <minimax-h3-node-pack>
 
-# download models into comfyui
-RUN --mount=type=secret,id=hf_token BACKOFFS="10 20 30 60 90" && for i in 1 2 3 4 5; do HF_TOKEN="$(cat /run/secrets/hf_token 2>/dev/null || true)" comfy model download --url 'https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_audio_vae_fp32.safetensors' --relative-path models/vae --filename 'minimax_h3_audio_vae_fp32.safetensors' && break; if [ $i -eq 5 ]; then echo "model-download failed after 5 attempts" >&2; exit 1; fi; SLEEP=$(echo $BACKOFFS | cut -d ' ' -f $i) && echo "model-download attempt $i failed; retrying in $SLEEP seconds" >&2; sleep $SLEEP; done
-RUN --mount=type=secret,id=hf_token BACKOFFS="10 20 30 60 90" && for i in 1 2 3 4 5; do HF_TOKEN="$(cat /run/secrets/hf_token 2>/dev/null || true)" comfy model download --url 'https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/diffusion_models/minimax_h3_ref2va_pruned_int8_convrot.safetensors' --relative-path models/diffusion_models --filename 'minimax_h3_ref2va_pruned_int8_convrot.safetensors' && break; if [ $i -eq 5 ]; then echo "model-download failed after 5 attempts" >&2; exit 1; fi; SLEEP=$(echo $BACKOFFS | cut -d ' ' -f $i) && echo "model-download attempt $i failed; retrying in $SLEEP seconds" >&2; sleep $SLEEP; done
-RUN --mount=type=secret,id=hf_token BACKOFFS="10 20 30 60 90" && for i in 1 2 3 4 5; do HF_TOKEN="$(cat /run/secrets/hf_token 2>/dev/null || true)" comfy model download --url 'https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/diffusion_models/minimax_h3_ref2va_pruned_fp8_scaled.safetensors' --relative-path models/diffusion_models --filename 'minimax_h3_ref2va_pruned_fp8_scaled.safetensors' && break; if [ $i -eq 5 ]; then echo "model-download failed after 5 attempts" >&2; exit 1; fi; SLEEP=$(echo $BACKOFFS | cut -d ' ' -f $i) && echo "model-download attempt $i failed; retrying in $SLEEP seconds" >&2; sleep $SLEEP; done
-RUN --mount=type=secret,id=hf_token BACKOFFS="10 20 30 60 90" && for i in 1 2 3 4 5; do HF_TOKEN="$(cat /run/secrets/hf_token 2>/dev/null || true)" comfy model download --url 'https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_video_vae_fp16.safetensors' --relative-path models/vae --filename 'minimax_h3_video_vae_fp16.safetensors' && break; if [ $i -eq 5 ]; then echo "model-download failed after 5 attempts" >&2; exit 1; fi; SLEEP=$(echo $BACKOFFS | cut -d ' ' -f $i) && echo "model-download attempt $i failed; retrying in $SLEEP seconds" >&2; sleep $SLEEP; done
-RUN --mount=type=secret,id=hf_token BACKOFFS="10 20 30 60 90" && for i in 1 2 3 4 5; do HF_TOKEN="$(cat /run/secrets/hf_token 2>/dev/null || true)" comfy model download --url 'https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors' --relative-path models/text_encoders --filename 'qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors' && break; if [ $i -eq 5 ]; then echo "model-download failed after 5 attempts" >&2; exit 1; fi; SLEEP=$(echo $BACKOFFS | cut -d ' ' -f $i) && echo "model-download attempt $i failed; retrying in $SLEEP seconds" >&2; sleep $SLEEP; done
-RUN --mount=type=secret,id=hf_token BACKOFFS="10 20 30 60 90" && for i in 1 2 3 4 5; do HF_TOKEN="$(cat /run/secrets/hf_token 2>/dev/null || true)" comfy model download --url 'https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/loras/minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors' --relative-path models/loras --filename 'minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors' && break; if [ $i -eq 5 ]; then echo "model-download failed after 5 attempts" >&2; exit 1; fi; SLEEP=$(echo $BACKOFFS | cut -d ' ' -f $i) && echo "model-download attempt $i failed; retrying in $SLEEP seconds" >&2; sleep $SLEEP; done
-RUN --mount=type=secret,id=hf_token BACKOFFS="10 20 30 60 90" && for i in 1 2 3 4 5; do HF_TOKEN="$(cat /run/secrets/hf_token 2>/dev/null || true)" comfy model download --url 'https://huggingface.co/Plaguekind/H3-Loras/resolve/main/PlagueKind-tiddies-realismslider.safetensors' --relative-path models/loras --filename 'MiniMaxH3/PlagueKind-tiddies-realismslider.safetensors' && break; if [ $i -eq 5 ]; then echo "model-download failed after 5 attempts" >&2; exit 1; fi; SLEEP=$(echo $BACKOFFS | cut -d ' ' -f $i) && echo "model-download attempt $i failed; retrying in $SLEEP seconds" >&2; sleep $SLEEP; done
-RUN --mount=type=secret,id=hf_token BACKOFFS="10 20 30 60 90" && for i in 1 2 3 4 5; do HF_TOKEN="$(cat /run/secrets/hf_token 2>/dev/null || true)" comfy model download --url 'https://huggingface.co/cdkkkk/setup/resolve/main/h3/breastplayjiggle_h3_v2.safetensors' --relative-path models/loras --filename 'MiniMaxH3/breastplayjiggle_h3_v2.safetensors' && break; if [ $i -eq 5 ]; then echo "model-download failed after 5 attempts" >&2; exit 1; fi; SLEEP=$(echo $BACKOFFS | cut -d ' ' -f $i) && echo "model-download attempt $i failed; retrying in $SLEEP seconds" >&2; sleep $SLEEP; done
+# Static input images referenced by the workflow's LoadImage nodes (small, baked).
+# Only the two images api-workflow.json actually loads are fetched.
+RUN wget -q -O '/comfyui/input/image - 2026-09-20T151715.583.webp' "https://cool-anteater-319.convex.cloud/api/storage/f3e96993-faf9-4205-9c02-4a93f0aa5ad4" \
+ && wget -q -O '/comfyui/input/image - 2026-09-20T154518.188.webp' "https://cool-anteater-319.convex.cloud/api/storage/40aa33b2-47d2-4dac-926a-cac028751019"
 
-# copy all input data (like images or videos) into comfyui (uncomment and adjust if needed)
-# COPY input/ /comfyui/input/
+# Make ComfyUI search the network volume for every model type the workflow uses.
+# (Replaces the base image's file, which only mapped the legacy unet/clip keys.)
+COPY extra_model_paths.yaml /comfyui/extra_model_paths.yaml
 
-# user-provided inputs override the auto-generated placeholders above.
-RUN wget --progress=dot:giga -O '/comfyui/input/image - 2026-09-20T131525.497.webp' "https://cool-anteater-319.convex.cloud/api/storage/726882e9-cf9f-42cd-ad8b-670630bd4769"
-RUN wget --progress=dot:giga -O '/comfyui/input/image - 2026-09-20T151715.583.webp' "https://cool-anteater-319.convex.cloud/api/storage/f3e96993-faf9-4205-9c02-4a93f0aa5ad4"
-RUN wget --progress=dot:giga -O '/comfyui/input/image - 2026-09-20T154518.188.webp' "https://cool-anteater-319.convex.cloud/api/storage/40aa33b2-47d2-4dac-926a-cac028751019"
+# Populate the network volume on first start, then start the worker exactly as
+# the base image would. Set HF_TOKEN on the endpoint if any weight repo is gated.
+COPY download-models.sh /usr/local/bin/download-models.sh
+RUN chmod +x /usr/local/bin/download-models.sh
+CMD ["/usr/local/bin/download-models.sh"]
