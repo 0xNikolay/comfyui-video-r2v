@@ -21,13 +21,30 @@ FROM runpod/worker-comfyui:5.10.0-base
 #     later cold starts are fast.
 # ---------------------------------------------------------------------------
 
-# install custom nodes into comfyui
-# WARNING: comfyui-wizard could not resolve the MiniMaxH3 node pack, so this is
-# a no-op. api-workflow.json loads MiniMaxH3ReferenceToVideo (plus
-# ResolutionSelector / ComfySwitchNode / ComfyMathExpression). Until that pack is
-# installed here, every job will fail with "node type not found". Resolve it at
-# https://registry.comfy.org and uncomment:
-# RUN comfy-node-install <minimax-h3-node-pack>
+# Install the custom nodes the workflow needs (the MiniMaxH3 packs included).
+# comfy-node-install is worker-comfyui's wrapper around `comfy node install`: it
+# adds --mode=remote and fails the build, listing offenders, if any node cannot
+# be installed.
+# ComfyUI-Manager is omitted on purpose -- the base image already ships it and
+# start.sh switches it to offline mode.
+RUN comfy-node-install --fast-deps \
+      image-resize-comfyui \
+      https://github.com/ltdrdata/ComfyUI-Impact-Pack \
+      https://github.com/ltdrdata/ComfyUI-Inspire-Pack \
+      https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite \
+      https://github.com/city96/ComfyUI-GGUF \
+      https://github.com/chrisgoringe/cg-use-everywhere \
+      https://github.com/Comfy-Org/ComfyUI-Frame-Interpolation \
+      https://github.com/M1kep/ComfyLiterals \
+      https://github.com/ClownsharkBatwing/RES4LYF \
+      https://github.com/aria1th/ComfyUI-LogicUtils \
+      https://github.com/kijai/ComfyUI-KJNodes \
+      https://github.com/rgthree/rgthree-comfy \
+      https://github.com/yolain/ComfyUI-Easy-Use \
+      https://github.com/cubiq/ComfyUI_essentials \
+      https://github.com/kijai/ComfyUI-SolAttn_triton \
+      https://github.com/seesee75-commits/ComfyUI-MiniMaxH3-Director \
+      https://github.com/tritant/ComfyUI_MiniMax_H3_Extender
 
 # Static input images referenced by the workflow's LoadImage nodes (small, baked).
 # Only the two images api-workflow.json actually loads are fetched.
