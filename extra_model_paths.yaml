@@ -1,0 +1,21 @@
+# Extra model search paths for the Runpod network volume.
+#
+# Serverless workers mount a network volume at /runpod-volume; Pods mount it at
+# /workspace. This file targets serverless. Both the legacy folder keys (unet,
+# clip) and the modern ones (diffusion_models, text_encoders) are listed so the
+# on-volume layout can match the workflow's own relative paths.
+runpod_worker_comfy:
+  base_path: /runpod-volume
+  checkpoints: models/checkpoints/
+  clip: models/clip/
+  text_encoders: models/text_encoders/
+  clip_vision: models/clip_vision/
+  configs: models/configs/
+  controlnet: models/controlnet/
+  embeddings: models/embeddings/
+  loras: models/loras/
+  unet: models/unet/
+  diffusion_models: models/diffusion_models/
+  model_patches: models/model_patches/
+  upscale_models: models/upscale_models/
+  vae: models/vae/
